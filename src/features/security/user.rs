@@ -3,8 +3,9 @@ use regex::{Error, Regex};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct UserRole<'r> {
     name: &'r str,
     actions: Vec<&'r str>,

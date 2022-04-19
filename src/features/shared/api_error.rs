@@ -1,31 +1,32 @@
-use rocket::http::{Header, Status};
-use rocket::response::{Responder, Result as ResponseResult};
-use rocket::{Request, Response};
+use rocket::http::{ContentType, Header, Status};
+use rocket::response::{Responder, Response, Result as ResponseResult};
+use rocket::Request;
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 
-#[derive(Responder)]
-pub struct ApiErrorResponder<'a> {
-    inner: String,
-    code: Header<'a>,
-}
-
-impl<'a> ApiErrorResponder<'a> {
-    pub fn new(inner: String, code: String) -> Self {
-        Self {
-            inner,
-            code: Header::new("api-error-code", code),
-        }
-    }
-}
-
-impl<'a> TryFrom<ApiError<'a>> for ApiErrorResponder<'a> {
-    type Error = serde_json::Error;
-
-    fn try_from(api_error: ApiError) -> Result<Self, Self::Error> {
-        let json = serde_json::to_string(&api_error)?;
-        Ok(ApiErrorResponder::new(json, api_error.code))
-    }
-}
+// #[derive(Responder)]
+// pub struct ApiErrorResponder<'a> {
+//     inner: String,
+//     code: Header<'a>,
+// }
+//
+// impl<'a> ApiErrorResponder<'a> {
+//     pub fn new(inner: String, code: String) -> Self {
+//         Self {
+//             inner,
+//             code: Header::new("api-error-code", code),
+//         }
+//     }
+// }
+//
+// impl<'a> TryFrom<ApiError<'a>> for ApiErrorResponder<'a> {
+//     type Error = serde_json::Error;
+//
+//     fn try_from(api_error: ApiError) -> Result<Self, Self::Error> {
+//         let json = serde_json::to_string(&api_error)?;
+//         Ok(ApiErrorResponder::new(json, api_error.code))
+//     }
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiError<'a> {
@@ -65,11 +66,15 @@ impl<'a> ApiError<'a> {
 }
 
 impl<'r, 'o: 'r> Responder<'r, 'o> for ApiError<'o> {
-    fn respond_to(self, request: &'r Request<'_>) -> ResponseResult<'o> {
-        let api_error_responder_result = ApiErrorResponder::try_from(self);
-        match api_error_responder_result {
-            Ok(responder) => responder.respond_to(request),
-            Err(e) => ResponseResult::Err(Status::InternalServerError),
+    fn respond_to(self, _: &'r Request<'_>) -> ResponseResult<'o> {
+        let json_res = serde_json::to_string(&self);
+        match json_res {
+            Ok(json) => Ok(Response::build()
+                .sized_body(json.len(), Cursor::new(json))
+                .header(ContentType::new("application", "json"))
+                .status(Status::from_code(self.http_status).unwrap_or(Status::InternalServerError))
+                .finalize()),
+            Err(_) => Err(Status::InternalServerError),
         }
     }
 }
