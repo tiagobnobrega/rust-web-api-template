@@ -26,5 +26,8 @@ fn edit(user: User) -> Result<&'static str, ApiError> {
 
 #[launch]
 fn rocket() -> Rocket<Build> {
-    rocket::build().mount("/", routes![read, edit])
+    let mut rocket_builder = rocket::build();
+    rocket_builder = rocket_builder.mount("/", routes![read]);
+    rocket_builder = rocket_builder.mount("/", routes![edit]);
+    rocket_builder
 }
