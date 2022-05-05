@@ -1,11 +1,13 @@
-use crate::features::shared::ApiError;
 use regex::{Error, Regex};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+use crate::features::security::jwt::Claims;
+use crate::features::shared::ApiError;
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct UserRole<'r> {
     name: &'r str,
     actions: Vec<&'r str>,
@@ -17,9 +19,10 @@ impl<'r> UserRole<'r> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct User<'r> {
     username: String,
+    #[serde(borrow)]
     pub roles: Vec<UserRole<'r>>,
 }
 impl<'r> User<'r> {
@@ -33,10 +36,8 @@ impl<'r> User<'r> {
     fn get_action_list(&self) -> Vec<&str> {
         self.roles
             .iter()
-            .map(|role| role.actions.to_vec())
-            .flatten()
+            .flat_map(|role| role.actions.to_vec())
             .collect::<Vec<&str>>()
-            .clone()
     }
     pub fn has_action(&self, action: &str) -> bool {
         self.get_action_list()
@@ -59,31 +60,24 @@ impl<'r> User<'r> {
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for User<'r> {
-    type Error = ApiError<'r>;
+    type Error = ApiError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let headers = request.headers();
-        let auth_opt = headers.get_one("Authorization");
-        match auth_opt {
-            None => {
-                Outcome::Failure(ApiError::from_status(Status::Unauthorized).to_outcome_failure())
+        let claims = request.guard::<Claims>().await.unwrap();
+
+        match claims.sub.as_str() {
+            "user" => {
+                let mut user = User::new("user".to_string());
+                user.roles.push(UserRole::new("ROLE_A", vec!["HELLO/READ"]));
+                Outcome::Success(user)
             }
-            Some(auth) => match auth {
-                "user" => {
-                    let mut user = User::new("user".to_string());
-                    user.roles.push(UserRole::new("ROLE_A", vec!["HELLO/READ"]));
-                    Outcome::Success(user)
-                }
-                "admin" => {
-                    let mut user = User::new("user".to_string());
-                    user.roles
-                        .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
-                    Outcome::Success(user)
-                }
-                &_ => {
-                    Outcome::Failure(ApiError::from_status(Status::Forbidden).to_outcome_failure())
-                }
-            },
+            "admin" => {
+                let mut user = User::new("user".to_string());
+                user.roles
+                    .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
+                Outcome::Success(user)
+            }
+            &_ => Outcome::Failure(ApiError::from_status(Status::Forbidden).to_outcome_failure()),
         }
     }
 }

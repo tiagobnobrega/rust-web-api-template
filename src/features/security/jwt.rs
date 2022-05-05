@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
-use crate::ApiError;
 use jsonwebtoken::errors::{Error as JwtError, ErrorKind, Result as JwtResult};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
 use serde::{Deserialize, Serialize};
+
+use crate::ApiError;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum TokenType {
@@ -16,6 +16,7 @@ pub enum TokenType {
     RESET,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TokenTypeConfig {
     duration: usize,
     iss: String,
@@ -24,8 +25,10 @@ pub struct TokenTypeConfig {
 // TODO: Parametrize this
 const TOKEN_ISS: &str = "rust-web-api-template";
 const JWT_KEY: &[u8] = b"changeme";
-const DECODING_KEY: DecodingKey = DecodingKey::from_secret(JWT_KEY);
-const ENCODING_KEY:EncodingKey = EncodingKey::from_secret(JWT_KEY);
+
+// TODO: Add these to app State or something
+// static DECODING_KEY: DecodingKey = DecodingKey::from_secret(JWT_KEY);
+// static ENCODING_KEY: EncodingKey = EncodingKey::from_secret(JWT_KEY);
 
 impl TokenType {
     pub fn getConfig(&self) -> TokenTypeConfig {
@@ -53,50 +56,44 @@ pub struct Claims {
     pub aud: TokenType,
 }
 
-impl TryFrom<String> for Claims {
+impl TryFrom<&str> for Claims {
     type Error = ApiError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let token_data = match decode::<Claims>(&value, , &validation) {
-            Ok(c) => c,
-            Err(err) => match *err.kind() {
-                ErrorKind::InvalidToken => panic!("Token is invalid"),
-                ErrorKind::InvalidIssuer => panic!("Issuer is invalid"), // Example on how to handle a specific error
-                _ => ,
-            },
-        };
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        //TODO: improve token validation
+        let validation = Validation::new(Algorithm::HS256);
+        //TODO: Remove DecodingKey instantiation
+        match decode::<Claims>(value, &DecodingKey::from_secret(JWT_KEY), &validation) {
+            Ok(token_data) => Ok(token_data.claims),
+            Err(err) => Err(ApiError::from(err)),
+        }
     }
 }
 
 impl Claims {
     pub fn toJwt(&self) -> JwtResult<String> {
+        //TODO: Remove EncodingKey instantiation
         encode(
             &Header::default(),
             &self,
-            &ENCODING_KEY,
+            &EncodingKey::from_secret(JWT_KEY),
         )
     }
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for JwtToken {
-    type Error = ApiError<'r>;
+impl<'r> FromRequest<'r> for Claims {
+    type Error = ApiError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let headers = request.headers();
         let auth_opt = headers.get_one("Authorization");
         match auth_opt {
             None => Outcome::Forward(()),
-            Some(authorization) => {
-                let token = match encode(
-                    &Header::default(),
-                    &my_claims,
-                    &EncodingKey::from_secret(key),
-                ) {
-                    Ok(t) => t,
-                    Err(_) => panic!(), // in practice you would return the error
-                };
-            }
+            Some(authorization) => match Claims::try_from(authorization) {
+                Ok(claims) => Outcome::Success(claims),
+                Err(err) => Outcome::Failure(err.to_outcome_failure_cached(request)),
+            },
         }
     }
 }
