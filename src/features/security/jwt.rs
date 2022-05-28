@@ -1,8 +1,8 @@
+use chrono::{Duration, Utc};
 use std::fmt::Debug;
 
-use jsonwebtoken::errors::{Error as JwtError, ErrorKind, Result as JwtResult};
+use jsonwebtoken::errors::Result as JwtResult;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ pub enum TokenType {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TokenTypeConfig {
-    duration: usize,
+    duration: i64,
     iss: String,
 }
 
@@ -51,7 +51,8 @@ impl TokenType {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claims {
-    pub exp: usize,
+    pub exp: i64,
+    pub iat: i64,
     pub sub: String,
     pub aud: TokenType,
 }
@@ -79,6 +80,13 @@ impl Claims {
             &EncodingKey::from_secret(JWT_KEY),
         )
     }
+    pub fn new(sub: String, aud: TokenType) -> Self {
+        let now = Utc::now();
+        let iat = now.timestamp();
+        let exp_dt = now + Duration::days(aud.getConfig().duration);
+        let exp = exp_dt.timestamp();
+        Self { exp, sub, aud, iat }
+    }
 }
 
 #[rocket::async_trait]
@@ -92,7 +100,7 @@ impl<'r> FromRequest<'r> for Claims {
             None => Outcome::Forward(()),
             Some(authorization) => match Claims::try_from(authorization) {
                 Ok(claims) => Outcome::Success(claims),
-                Err(err) => Outcome::Failure(err.to_outcome_failure_cached(request)),
+                Err(err) => Outcome::Failure(err.to_outcome_failure()),
             },
         }
     }

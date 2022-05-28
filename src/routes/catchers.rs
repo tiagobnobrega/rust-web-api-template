@@ -1,7 +1,5 @@
-use rocket::catcher::BoxFuture;
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket::response::{Responder, Result as RocketResult};
 use rocket::{Catcher, Request};
 
 use crate::ApiError;

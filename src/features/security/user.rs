@@ -1,5 +1,6 @@
 use regex::{Error, Regex};
 use rocket::http::Status;
+use rocket::outcome::IntoOutcome;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
 use serde::{Deserialize, Serialize};
@@ -63,21 +64,27 @@ impl<'r> FromRequest<'r> for User<'r> {
     type Error = ApiError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let claims = request.guard::<Claims>().await.unwrap();
+        let claims_outcome = request.guard::<Claims>().await;
 
-        match claims.sub.as_str() {
-            "user" => {
-                let mut user = User::new("user".to_string());
-                user.roles.push(UserRole::new("ROLE_A", vec!["HELLO/READ"]));
-                Outcome::Success(user)
-            }
-            "admin" => {
-                let mut user = User::new("user".to_string());
-                user.roles
-                    .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
-                Outcome::Success(user)
-            }
-            &_ => Outcome::Failure(ApiError::from_status(Status::Forbidden).to_outcome_failure()),
+        match claims_outcome {
+            Outcome::Success(claims) => match claims.sub.as_str() {
+                "user" => {
+                    let mut user = User::new("user".to_string());
+                    user.roles.push(UserRole::new("ROLE_A", vec!["HELLO/READ"]));
+                    Outcome::Success(user)
+                }
+                "admin" => {
+                    let mut user = User::new("user".to_string());
+                    user.roles
+                        .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
+                    Outcome::Success(user)
+                }
+                &_ => {
+                    Outcome::Failure(ApiError::from_status(Status::Forbidden).to_outcome_failure())
+                }
+            },
+            Outcome::Failure(fail_data) => Outcome::Failure(fail_data),
+            Outcome::Forward(forward_data) => Outcome::Forward(forward_data),
         }
     }
 }
