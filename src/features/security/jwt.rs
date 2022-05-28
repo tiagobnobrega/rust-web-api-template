@@ -98,10 +98,14 @@ impl<'r> FromRequest<'r> for Claims {
         let auth_opt = headers.get_one("Authorization");
         match auth_opt {
             None => Outcome::Forward(()),
-            Some(authorization) => match Claims::try_from(authorization) {
-                Ok(claims) => Outcome::Success(claims),
-                Err(err) => Outcome::Failure(err.to_outcome_failure()),
-            },
+            Some(authorization) => {
+                let authorization_parts: Vec<&str> = authorization.split("Bearer ").collect();
+                let token = *authorization_parts.get(1).unwrap_or(&"");
+                match Claims::try_from(token) {
+                    Ok(claims) => Outcome::Success(claims),
+                    Err(err) => Outcome::Failure(err.to_outcome_failure()),
+                }
+            }
         }
     }
 }
