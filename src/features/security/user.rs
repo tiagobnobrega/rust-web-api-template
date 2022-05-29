@@ -1,6 +1,5 @@
 use regex::{Error, Regex};
 use rocket::http::Status;
-use rocket::outcome::IntoOutcome;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
 use serde::{Deserialize, Serialize};
@@ -74,7 +73,7 @@ impl<'r> FromRequest<'r> for User<'r> {
                     Outcome::Success(user)
                 }
                 "admin" => {
-                    let mut user = User::new("user".to_string());
+                    let mut user = User::new("admin".to_string());
                     user.roles
                         .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
                     Outcome::Success(user)

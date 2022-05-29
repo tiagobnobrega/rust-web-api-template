@@ -12,8 +12,15 @@ pub struct BasicAuthData {
     password: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BasicAuthResponse {
+    token: String,
+}
+
 #[post("/auth/basic", format = "json", data = "<basic_auth_data>")]
-pub fn basic_authenticate(basic_auth_data: Json<BasicAuthData>) -> Result<String, ApiError> {
+pub fn basic_authenticate(
+    basic_auth_data: Json<BasicAuthData>,
+) -> Result<Json<BasicAuthResponse>, ApiError> {
     let user_id = basic_auth_data.user_id.as_ref().ok_or_else(|| {
         ApiError::from_status_message(Status::BadRequest, "Argument user must be defined")
     })?;
@@ -27,14 +34,18 @@ pub fn basic_authenticate(basic_auth_data: Json<BasicAuthData>) -> Result<String
                 return Err(ApiError::from_status(Status::Forbidden));
             }
             let claims = Claims::new("user".to_string(), TokenType::DEFAULT);
-            Ok(claims.toJwt()?)
+            Ok(Json(BasicAuthResponse {
+                token: claims.toJwt()?,
+            }))
         }
         "admin" => {
             if password != "123456" {
                 return Err(ApiError::from_status(Status::Forbidden));
             }
             let claims = Claims::new("admin".to_string(), TokenType::DEFAULT);
-            Ok(claims.toJwt()?)
+            Ok(Json(BasicAuthResponse {
+                token: claims.toJwt()?,
+            }))
         }
         _ => Err(ApiError::from_status(Status::Forbidden)),
     }
