@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  db: # <- This is the db identifier to usin in the pgadmin connection string
+    container_name: local_postgres_db # <- Specify different name for your project
+    image: postgres:14
+    environment:
+      APP_DB: "rustweb"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "123456"
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./.data:/var/lib/postgresql/data
+    networks:
+      - pg-network
+
+  pgadmin:
+    container_name: local_postgres_pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@postgres.com.br" # <- Specify different admin user for your project
+      PGADMIN_DEFAULT_PASSWORD: "123456"
+    ports:
+      - "54321:80"
+    depends_on:
+      - db
+    networks:
+      - pg-network
+
+networks:
+  pg-network:
+    driver: bridge
