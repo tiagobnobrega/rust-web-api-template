@@ -1,8 +1,8 @@
-use super::super::user::{User, UserRole};
+use super::super::user::{User, Role};
 
-fn get_test_roles<'a>() -> (UserRole<'a>, UserRole<'a>) {
-    let ra: UserRole = UserRole::new("ROLE_A", vec!["NSA/1", "NSA/2", "NSB/1", "NSB/2"]);
-    let rb: UserRole = UserRole::new("ROLE_B", vec!["NSC/1", "NSC/2", "NSD/1", "NSD/2"]);
+fn get_test_roles<'a>() -> (Role<'a>, Role<'a>) {
+    let ra: Role = Role::new("ROLE_A", vec!["NSA/1", "NSA/2", "NSB/1", "NSB/2"]);
+    let rb: Role = Role::new("ROLE_B", vec!["NSC/1", "NSC/2", "NSD/1", "NSD/2"]);
     (ra, rb)
 }
 

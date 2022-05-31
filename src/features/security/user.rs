@@ -1,43 +1,71 @@
+use diesel::{Associations, Identifiable, Queryable};
 use regex::{Error, Regex};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
+use schema::{roles, users};
 use serde::{Deserialize, Serialize};
 
 use crate::features::security::jwt::Claims;
 use crate::features::shared::ApiError;
+use crate::schema;
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct UserRole<'r> {
+#[derive(Queryable, Associations, Debug, Deserialize, Serialize)]
+#[table_name = "roles"]
+#[belongs_to(parent = User<'_>,foreign_key="username")]
+pub struct Role<'r> {
+    username: &'r str,
     name: &'r str,
     actions: Vec<&'r str>,
 }
 
-impl<'r> UserRole<'r> {
-    pub fn new(name: &'r str, actions: Vec<&'r str>) -> Self {
-        Self { name, actions }
+impl<'r> Role<'r> {
+    pub fn new(username: &'r str, name: &'r str, actions: Vec<&'r str>) -> Self {
+        Self {
+            name,
+            actions,
+            username,
+        }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct User<'r> {
-    username: String,
-    #[serde(borrow)]
-    pub roles: Vec<UserRole<'r>>,
+// Fields should be on the same order as defined in the schema.rs
+#[derive(Identifiable, Insertable)]
+#[table_name = "users"]
+#[primary_key(username)]
+pub struct NewUser<'a> {
+    pub username: &'a String,
+    pub primary_email: &'a String,
+    pub password: &'a String,
+    pub first_name: &'a String,
+    pub last_name: &'a String,
 }
-impl<'r> User<'r> {
+
+#[derive(Queryable, Debug, Deserialize, Serialize)]
+pub struct User {
+    username: String,
+    primary_email: String,
+    password: String,
+    first_name: String,
+    last_name: String,
+}
+impl User {
     pub fn new(username: String) -> Self {
         Self {
             username,
-            roles: Vec::new(),
+            primary_email: "".to_string(),
+            password: "".to_string(),
+            first_name: "".to_string(),
+            last_name: "".to_string(),
         }
     }
 
     fn get_action_list(&self) -> Vec<&str> {
-        self.roles
-            .iter()
-            .flat_map(|role| role.actions.to_vec())
-            .collect::<Vec<&str>>()
+        return vec!["Unimplemented"];
+        // self.roles
+        //     .iter()
+        //     .flat_map(|role| role.actions.to_vec())
+        //     .collect::<Vec<&str>>()
     }
     pub fn has_action(&self, action: &str) -> bool {
         self.get_action_list()
@@ -59,7 +87,7 @@ impl<'r> User<'r> {
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for User<'r> {
+impl<'r> FromRequest<'r> for User {
     type Error = ApiError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
@@ -69,13 +97,10 @@ impl<'r> FromRequest<'r> for User<'r> {
             Outcome::Success(claims) => match claims.sub.as_str() {
                 "user" => {
                     let mut user = User::new("user".to_string());
-                    user.roles.push(UserRole::new("ROLE_A", vec!["HELLO/READ"]));
                     Outcome::Success(user)
                 }
                 "admin" => {
                     let mut user = User::new("admin".to_string());
-                    user.roles
-                        .push(UserRole::new("ROLE_A", vec!["HELLO/READ", "HELLO/EDIT"]));
                     Outcome::Success(user)
                 }
                 &_ => {

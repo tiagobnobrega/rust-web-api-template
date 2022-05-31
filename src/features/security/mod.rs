@@ -6,3 +6,4 @@ pub use routes::*;
 
 #[cfg(test)]
 mod tests;
+mod user_service;

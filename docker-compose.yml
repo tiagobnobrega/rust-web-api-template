@@ -5,7 +5,6 @@ services:
     container_name: local_postgres_db # <- Specify different name for your project
     image: postgres:14
     environment:
-      APP_DB: "rustweb"
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "123456"
     ports:
